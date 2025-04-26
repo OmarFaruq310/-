@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>স্টোক ও দৈনিক হিসাব</title>
+    <style>
+        body {
+            font-family: 'Kalpurush', 'Siyam Rupali', Arial, sans-serif;
+            direction: ltr;
+            margin: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .report-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+        }
+        .info-table td {
+            padding: 5px;
+            border: 1px solid #ddd;
+        }
+        .sales-table, .expense-table, .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .sales-table th, .sales-table td, 
+        .expense-table th, .expense-table td,
+        .stock-table th, .stock-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        .sales-table th, .expense-table th, .stock-table th {
+            background-color: #f2f2f2;
+        }
+        input, select {
+            width: 100%;
+            border: none;
+            text-align: center;
+            background: transparent;
+        }
+        .summary {
+            margin-top: 20px;
+            font-weight: bold;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: right;
+        }
+        button {
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .section-title {
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            font-size: 18px;
+            background-color: #f2f2f2;
+            padding: 5px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #ddd;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .save-options {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .save-options button {
+            display: block;
+            width: 200px;
+            margin: 10px 0;
+        }
+        .external-cash {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+        }
+        .common-buttons {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="report-title">স্টোক ও দৈনিক হিসাব</div>
+    </div>
+
+    <table class="info-table" id="dynamicInfoTable"></table>
+
+    <div class="tabs">
+        <div class="tab active" onclick="openTab('sales')">বিক্রয় হিসাব</div>
+        <div class="tab" onclick="openTab('expenses')">খরচ হিসাব</div>
+        <div class="tab" onclick="openTab('stock')">স্টোক ম্যানেজমেন্ট</div>
+    </div>
+
+    <div id="sales" class="tab-content active">
+        <div class="section-title">বিক্রয় হিসাব:</div>
+        <table class="sales-table" id="salesTable">
+            <thead>
+                <tr>
+                    <th width="5%">ক্রমিক</th>
+                    <th width="15%">পণ্যের নাম</th>
+                    <th width="10%">স্টোক কোড</th>
+                    <th width="7%">পরিমাণ</th>
+                    <th width="7%">ফেরত</th>
+                    <th width="7%">ড্যামেজ</th>
+                    <th width="7%">বিক্রয়</th>
+                    <th width="8%">একক মূল্য</th>
+                    <th width="8%">মোট মূল্য</th>
+                    <th width="7%">ছাড়</th>
+                    <th width="10%">ছাড়ের পর মূল্য</th>
+                    <th width="10%">মন্তব্য</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="common-buttons">
+            <button onclick="addSalesRow()">নতুন বিক্রয় যোগ করুন (+)</button>
+            <button onclick="removeSalesRow()">শেষ বিক্রয় মুছুন (-)</button>
+        </div>
+    </div>
+
+    <div id="expenses" class="tab-content">
+        <div class="section-title">খরচ হিসাব:</div>
+        
+        <div class="external-cash">
+            <strong>বাহির থেকে টাকা আনুন:</strong>
+            <input type="number" id="externalCash" placeholder="টাকার পরিমাণ">
+            <button onclick="addExternalCash()">টাকা যোগ করুন</button>
+        </div>
+        
+        <table class="expense-table" id="expenseTable">
+            <thead>
+                <tr>
+                    <th width="5%">ক্রমিক</th>
+                    <th width="25%">খরচের বিবরণ</th>
+                    <th width="15%">খরচের ধরন</th>
+                    <th width="15%">পরিমাণ</th>
+                    <th width="15%">একক মূল্য</th>
+                    <th width="15%">মোট খরচ</th>
+                    <th width="10%">মন্তব্য</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="common-buttons">
+            <button onclick="addExpenseRow()">নতুন খরচ যোগ করুন (+)</button>
+            <button onclick="removeExpenseRow()">শেষ খরচ মুছুন (-)</button>
+        </div>
+    </div>
+
+    <div id="stock" class="tab-content">
+        <div class="section-title">স্টোক ম্যানেজমেন্ট:</div>
+        <table class="stock-table" id="stockTable">
+            <thead>
+                <tr>
+                    <th width="5%">ক্রমিক</th>
+                    <th width="15%">পণ্যের নাম</th>
+                    <th width="10%">স্টোক কোড</th>
+                    <th width="10%">ইউনিট</th>
+                    <th width="10%">বর্তমান স্টোক</th>
+                    <th width="10%">সর্বনিম্ন স্টোক</th>
+                    <th width="10%">ক্রয় মূল্য</th>
+                    <th width="10%">বিক্রয় মূল্য</th>
+                    <th width="10%">সর্বশেষ আপডেট</th>
+                    <th width="10%">মন্তব্য</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="common-buttons">
+            <button onclick="addStockRow()">নতুন পণ্য যোগ করুন (+)</button>
+            <button onclick="removeStockRow()">শেষ পণ্য মুছুন (-)</button>
+            <button onclick="updateStockLevels()">স্টোক আপডেট করুন</button>
+        </div>
+    </div>
+
+    <div class="common-buttons">
+        <button onclick="calculateAll()">সমস্ত হিসাব করুন</button>
+        <button onclick="printReport()">প্রিন্ট করুন</button>
+        <button onclick="showSaveOptions()">সেভ করুন</button>
+        <button onclick="loadFromHardDisk()">লোড করুন</button>
+    </div>
+
+    <div class="summary">
+        <div>
+            <h3>বিক্রয় সারাংশ:</h3>
+            <p>আজকের মোট বিক্রি: <input type="number" id="totalSales" readonly> টাকা</p>
+            <p>মোট ফেরত পণ্য: <input type="number" id="totalReturns" readonly> পিস</p>
+            <p>মোট ড্যামেজ পণ্য: <input type="number" id="totalDamage" readonly> পিস</p>
+        </div>
+        <div>
+            <h3>খরচ ও লাভ:</h3>
+            <p>আজকের মোট খরচ: <input type="number" id="totalExpenses" readonly> টাকা</p>
+            <p>নিট আয়: <input type="number" id="netIncome" readonly> টাকা</p>
+            <p>বর্তমান নগদ: <input type="number" id="currentCash" readonly> টাকা</p>
+            <p>বাহির থেকে আনা টাকা: <input type="number" id="totalExternalCash" readonly> টাকা</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>প্রস্তুতকারকের স্বাক্ষর: ________________</p>
+        <p>তারিখ: <span id="currentDate"></span></p>
+    </div>
+
+    <div id="saveOptions" class="save-options">
+        <h3>সেভ অপশন</h3>
+        <button onclick="saveAsPDF()">PDF হিসেবে সেভ করুন</button>
+        <button onclick="saveAsExcel()">Excel হিসেবে সেভ করুন</button>
+        <button onclick="saveAsWord()">Word হিসেবে সেভ করুন</button>
+        <button onclick="saveToHardDisk()">হার্ড ডিস্কে সেভ করুন</button>
+        <button onclick="hideSaveOptions()">বন্ধ করুন</button>
+    </div>
+
+    <script>
+        // Set current date
+        const today = new Date();
+        document.getElementById('currentDate').textContent = today.toLocaleDateString('bn-BD');
+        
+        // Set day name
+        const days = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+        const dayName = days[today.getDay()];
+
+        // Global variables
+        let totalExternalCash = 0;
+        let salesRowCount = 0;
+        let expenseRowCount = 0;
+        let stockRowCount = 0;
+
+        // Initialize the page
+        function init() {
+            updateInfoTable('sales');
+            addSalesRow();
+            addExpenseRow();
+            addStockRow();
+        }
+
+        // Update info table based on selected tab
+        function updateInfoTable(tab) {
+            const infoTable = document.getElementById('dynamicInfoTable');
+            
+            if (tab === 'sales') {
+                infoTable.innerHTML = `
+                    <tr>
+                        <td width="25%"><strong>বিক্রয় প্রতিনিধির নাম:</strong> <input type="text" id="salesRep"></td>
+                        <td width="25%"><strong>রুটের নাম:</strong> <input type="text" id="routeName"></td>
+                        <td width="25%"><strong>তারিখ:</strong> <input type="date" id="reportDate" value="${today.toISOString().substr(0, 10)}"></td>
+                        <td width="25%"><strong>দিন:</strong> <input type="text" id="dayName" value="${dayName}" readonly></td>
+                    </tr>
+                `;
+            } else {
+                infoTable.innerHTML = `
+                    <tr>
+                        <td width="25%"><strong>ব্যবসার নাম:</strong> <input type="text" id="businessName"></td>
+                        <td width="25%"><strong>তারিখ:</strong> <input type="date" id="reportDate" value="${today.toISOString().substr(0, 10)}"></td>
+                        <td width="25%"><strong>দিন:</strong> <input type="text" id="dayName" value="${dayName}" readonly></td>
+                        <td width="25%"><strong>বর্তমান নগদ:</strong> <input type="number" id="cashInHand"></td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Tab functionality
+        function openTab(tabName) {
+            const tabs = document.getElementsByClassName('tab');
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            document.querySelector(`.tab[onclick="openTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Update info table based on selected tab
+            updateInfoTable(tabName);
+        }
+
+        // Add external cash
+        function addExternalCash() {
+            const amount = parseFloat(document.getElementById('externalCash').value) || 0;
+            if (amount > 0) {
+                totalExternalCash += amount;
+                document.getElementById('totalExternalCash').value = totalExternalCash;
+                document.getElementById('externalCash').value = '';
+                
+                // Update current cash
+                const cashInHand = parseFloat(document.getElementById('cashInHand').value) || 0;
+                document.getElementById('cashInHand').value = cashInHand + amount;
+                
+                alert(`${amount} টাকা সফলভাবে যোগ করা হয়েছে!`);
+            } else {
+                alert("দয়া করে সঠিক টাকার পরিমাণ দিন");
+            }
+        }
+
+        // Save options functionality
+        function showSaveOptions() {
+            document.getElementById('saveOptions').style.display = 'block';
+        }
+
+        function hideSaveOptions() {
+            document.getElementById('saveOptions').style.display = 'none';
+        }
+
+        // Sales table functions
+        function addSalesRow() {
+            salesRowCount++;
+            const tbody = document.querySelector('#salesTable tbody');
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${salesRowCount}</td>
+                <td><input type="text" class="product-name" list="productList"></td>
+                <td><input type="text" class="stock-code"></td>
+                <td><input type="number" class="quantity" onchange="calculateSalesRow(this)"></td>
+                <td><input type="number" class="return" onchange="calculateSalesRow(this)"></td>
+                <td><input type="number" class="damage" onchange="calculateSalesRow(this)"></td>
+                <td><input type="number" class="sold" readonly></td>
+                <td><input type="number" class="unit-price" onchange="calculateSalesRow(this)"></td>
+                <td><input type="number" class="total-price" readonly></td>
+                <td><input type="number" class="discount" onchange="calculateSalesRow(this)"></td>
+                <td><input type="number" class="after-discount" readonly></td>
+                <td><input type="text" class="comment"></td>
+            `;
+            
+            tbody.appendChild(row);
+        }
+
+        function removeSalesRow() {
+            const tbody = document.querySelector('#salesTable tbody');
+            if (tbody.rows.length > 0) {
+                tbody.deleteRow(tbody.rows.length - 1);
+                salesRowCount--;
+            }
+        }
+
+        function calculateSalesRow(input) {
+            const row = input.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+            const returned = parseFloat(row.querySelector('.return').value) || 0;
+            const damage = parseFloat(row.querySelector('.damage').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+            const discount = parseFloat(row.querySelector('.discount').value) || 0;
+
+            // Calculate sold quantity
+            const sold = quantity - returned - damage;
+            row.querySelector('.sold').value = sold;
+
+            // Calculate total price
+            const totalPrice = sold * unitPrice;
+            row.querySelector('.total-price').value = totalPrice;
+
+            // Calculate after discount
+            const afterDiscount = totalPrice - discount;
+            row.querySelector('.after-discount').value = afterDiscount;
+        }
+
+        // Expense table functions
+        function addExpenseRow() {
+            expenseRowCount++;
+            const tbody = document.querySelector('#expenseTable tbody');
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${expenseRowCount}</td>
+                <td><input type="text" class="expense-desc"></td>
+                <td>
+                    <select class="expense-type">
+                        <option value="purchase">পণ্য ক্রয়</option>
+                        <option value="transport">যানবাহন খরচ</option>
+                        <option value="food">খাবার খরচ</option>
+                        <option value="employee">কর্মচারী বেতন</option>
+                        <option value="utility">বিদ্যুৎ/পানি/গ্যাস</option>
+                        <option value="other">অন্যান্য</option>
+                    </select>
+                </td>
+                <td><input type="number" class="quantity" onchange="calculateExpenseRow(this)"></td>
+                <td><input type="number" class="unit-price" onchange="calculateExpenseRow(this)"></td>
+                <td><input type="number" class="total-cost" readonly></td>
+                <td><input type="text" class="comment"></td>
+            `;
+            
+            tbody.appendChild(row);
+        }
+
+        function removeExpenseRow() {
+            const tbody = document.querySelector('#expenseTable tbody');
+            if (tbody.rows.length > 0) {
+                tbody.deleteRow(tbody.rows.length - 1);
+                expenseRowCount--;
+            }
+        }
+
+        function calculateExpenseRow(input) {
+            const row = input.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+
+            // Calculate total cost
+            const totalCost = quantity * unitPrice;
+            row.querySelector('.total-cost').value = totalCost;
+        }
+
+        // Stock table functions
+        function addStockRow() {
+            stockRowCount++;
+            const tbody = document.querySelector('#stockTable tbody');
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${stockRowCount}</td>
+                <td><input type="text" class="product-name"></td>
+                <td><input type="text" class="stock-code"></td>
+                <td>
+                    <select class="unit">
+                        <option value="piece">পিস</option>
+                        <option value="kg">কেজি</option>
+                        <option value="liter">লিটার</option>
+                        <option value="packet">প্যাকেট</option>
+                        <option value="box">বাক্স</option>
+                    </select>
+                </td>
+                <td><input type="number" class="current-stock"></td>
+                <td><input type="number" class="min-stock"></td>
+                <td><input type="number" class="purchase-price"></td>
+                <td><input type="number" class="selling-price"></td>
+                <td><input type="date" class="last-update" value="${new Date().toISOString().substr(0, 10)}"></td>
+                <td><input type="text" class="comment"></td>
+            `;
+            
+            tbody.appendChild(row);
+        }
+
+        function removeStockRow() {
+            const tbody = document.querySelector('#stockTable tbody');
+            if (tbody.rows.length > 0) {
+                tbody.deleteRow(tbody.rows.length - 1);
+                stockRowCount--;
+            }
+        }
+
+        function updateStockLevels() {
+            alert("স্টোক আপডেট করা হয়েছে!");
+        }
+
+        // Main calculation function
+        function calculateAll() {
+            // Calculate sales
+            let totalSales = 0;
+            let totalReturns = 0;
+            let totalDamage = 0;
+            
+            document.querySelectorAll('#salesTable tbody tr').forEach(row => {
+                const inputs = row.querySelectorAll('input[type="number"]:not([readonly])');
+                inputs.forEach(input => {
+                    if (input.onchange) input.onchange();
+                });
+                
+                // Calculate total sales
+                const sales = parseFloat(row.querySelector('.after-discount').value) || 0;
+                totalSales += sales;
+                
+                // Calculate total returns
+                const returns = parseFloat(row.querySelector('.return').value) || 0;
+                totalReturns += returns;
+                
+                // Calculate total damage
+                const damage = parseFloat(row.querySelector('.damage').value) || 0;
+                totalDamage += damage;
+            });
+
+            // Calculate expenses
+            let totalExpenses = 0;
+            
+            document.querySelectorAll('#expenseTable tbody tr').forEach(row => {
+                const inputs = row.querySelectorAll('input[type="number"]:not([readonly])');
+                inputs.forEach(input => {
+                    if (input.onchange) input.onchange();
+                });
+                
+                // Calculate total expenses
+                const expense = parseFloat(row.querySelector('.total-cost').value) || 0;
+                totalExpenses += expense;
+            });
+
+            // Calculate net income
+            const netIncome = totalSales - totalExpenses;
+            const cashInHand = parseFloat(document.getElementById('cashInHand').value) || 0;
+            const currentCash = cashInHand + netIncome + totalExternalCash;
+
+            // Update summary
+            document.getElementById('totalSales').value = totalSales;
+            document.getElementById('totalReturns').value = totalReturns;
+            document.getElementById('totalDamage').value = totalDamage;
+            document.getElementById('totalExpenses').value = totalExpenses;
+            document.getElementById('netIncome').value = netIncome;
+            document.getElementById('currentCash').value = currentCash;
+            document.getElementById('totalExternalCash').value = totalExternalCash;
+            
+            alert("সমস্ত হিসাব সম্পন্ন হয়েছে!");
+        }
+
+        function printReport() {
+            calculateAll();
+            window.print();
+        }
+
+        // Save functions
+        function saveAsPDF() {
+            calculateAll();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add title
+            doc.setFontSize(18);
+            doc.text('দৈনিক বিক্রয় ও ব্যয় হিসাব', 105, 15, { align: 'center' });
+            
+            // Add business info
+            doc.setFontSize(12);
+            doc.text(`বিক্রয় প্রতিনিধি: ${document.getElementById('salesRep').value}`, 14, 25);
+            doc.text(`রুট: ${document.getElementById('routeName').value}`, 14, 35);
+            doc.text(`তারিখ: ${document.getElementById('reportDate').value}`, 14, 45);
+            
+            // Add sales table
+            doc.autoTable({
+                html: '#salesTable',
+                startY: 55,
+                styles: { font: 'Kalpurush', fontStyle: 'normal' }
+            });
+            
+            // Add summary
+            doc.text(`মোট বিক্রয়: ${document.getElementById('totalSales').value} টাকা`, 14, doc.lastAutoTable.finalY + 15);
+            doc.text(`নিট আয়: ${document.getElementById('netIncome').value} টাকা`, 14, doc.lastAutoTable.finalY + 25);
+            
+            doc.save('বিক্রয়_হিসাব.pdf');
+            hideSaveOptions();
+        }
+
+        function saveAsExcel() {
+            calculateAll();
+            const wb = XLSX.utils.book_new();
+            
+            // Sales data
+            const salesTable = document.getElementById('salesTable');
+            const salesWS = XLSX.utils.table_to_sheet(salesTable);
+            XLSX.utils.book_append_sheet(wb, salesWS, "বিক্রয়");
+            
+            // Expenses data
+            const expenseTable = document.getElementById('expenseTable');
+            const expenseWS = XLSX.utils.table_to_sheet(expenseTable);
+            XLSX.utils.book_append_sheet(wb, expenseWS, "খরচ");
+            
+            // Summary data
+            const summaryData = [
+                ["বিক্রয় প্রতিনিধি", document.getElementById('salesRep').value],
+                ["রুট", document.getElementById('routeName').value],
+                ["তারিখ", document.getElementById('reportDate').value],
+                ["মোট বিক্রয়", document.getElementById('totalSales').value],
+                ["মোট খরচ", document.getElementById('totalExpenses').value],
+                ["নিট আয়", document.getElementById('netIncome').value],
+                ["বাহির থেকে আনা টাকা", document.getElementById('totalExternalCash').value]
+            ];
+            const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, summaryWS, "সারাংশ");
+            
+            XLSX.writeFile(wb, "বিক্রয়_হিসাব.xlsx");
+            hideSaveOptions();
+        }
+
+        function saveAsWord() {
+            calculateAll();
+            alert("Word ফরমেটে সেভ করার ফিচারটি খুব শীঘ্রই আসছে!");
+            hideSaveOptions();
+        }
+
+        function saveToHardDisk() {
+            calculateAll();
+            
+            // Gather all data
+            const reportData = {
+                businessInfo: {
+                    businessName: document.getElementById('businessName')?.value,
+                    salesRep: document.getElementById('salesRep')?.value,
+                    routeName: document.getElementById('routeName')?.value,
+                    reportDate: document.getElementById('reportDate')?.value,
+                    dayName: document.getElementById('dayName')?.value,
+                    cashInHand: document.getElementById('cashInHand')?.value
+                },
+                sales: [],
+                expenses: [],
+                stock: [],
+                summary: {
+                    totalSales: document.getElementById('totalSales').value,
+                    totalReturns: document.getElementById('totalReturns').value,
+                    totalDamage: document.getElementById('totalDamage').value,
+                    totalExpenses: document.getElementById('totalExpenses').value,
+                    netIncome: document.getElementById('netIncome').value,
+                    currentCash: document.getElementById('currentCash').value,
+                    totalExternalCash: document.getElementById('totalExternalCash').value
+                }
+            };
+
+            // Collect sales data
+            document.querySelectorAll('#salesTable tbody tr').forEach(row => {
+                reportData.sales.push({
+                    productName: row.querySelector('.product-name').value,
+                    stockCode: row.querySelector('.stock-code').value,
+                    quantity: row.querySelector('.quantity').value,
+                    returned: row.querySelector('.return').value,
+                    damage: row.querySelector('.damage').value,
+                    sold: row.querySelector('.sold').value,
+                    unitPrice: row.querySelector('.unit-price').value,
+                    totalPrice: row.querySelector('.total-price').value,
+                    discount: row.querySelector('.discount').value,
+                    afterDiscount: row.querySelector('.after-discount').value,
+                    comment: row.querySelector('.comment').value
+                });
+            });
+
+            // Collect expense data
+            document.querySelectorAll('#expenseTable tbody tr').forEach(row => {
+                reportData.expenses.push({
+                    description: row.querySelector('.expense-desc').value,
+                    type: row.querySelector('.expense-type').value,
+                    quantity: row.querySelector('.quantity').value,
+                    unitPrice: row.querySelector('.unit-price').value,
+                    totalCost: row.querySelector('.total-cost').value,
+                    comment: row.querySelector('.comment').value
+                });
+            });
+
+            // Collect stock data
+            document.querySelectorAll('#stockTable tbody tr').forEach(row => {
+                reportData.stock.push({
+                    productName: row.querySelector('.product-name').value,
+                    stockCode: row.querySelector('.stock-code').value,
+                    unit: row.querySelector('.unit').value,
+                    currentStock: row.querySelector('.current-stock').value,
+                    minStock: row.querySelector('.min-stock').value,
+                    purchasePrice: row.querySelector('.purchase-price').value,
+                    sellingPrice: row.querySelector('.selling-price').value,
+                    lastUpdate: row.querySelector('.last-update').value,
+                    comment: row.querySelector('.comment').value
+                });
+            });
+
+            // Create a blob and download it
+            const dataStr = JSON.stringify(reportData, null, 2);
+            const blob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `বিক্রয়_হিসাব_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            hideSaveOptions();
+        }
+
+        function loadFromHardDisk() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = event => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        loadDataIntoForm(data);
+                    } catch (error) {
+                        alert('ফাইল লোড করতে সমস্যা হয়েছে: ' + error.message);
+                    }
+                };
+                
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+
+        function loadDataIntoForm(data) {
+            // Load business info
+            if (data.businessInfo) {
+                if (document.getElementById('businessName')) document.getElementById('businessName').value = data.businessInfo.businessName || '';
+                if (document.getElementById('salesRep')) document.getElementById('salesRep').value = data.businessInfo.salesRep || '';
+                if (document.getElementById('routeName')) document.getElementById('routeName').value = data.businessInfo.routeName || '';
+                if (document.getElementById('reportDate')) document.getElementById('reportDate').value = data.businessInfo.reportDate || '';
+                if (document.getElementById('dayName')) document.getElementById('dayName').value = data.businessInfo.dayName || '';
+                if (document.getElementById('cashInHand')) document.getElementById('cashInHand').value = data.businessInfo.cashInHand || '';
+            }
+
+            // Load sales data
+            if (data.sales && data.sales.length > 0) {
+                // Clear existing rows
+                const salesTbody = document.querySelector('#salesTable tbody');
+                salesTbody.innerHTML = '';
+                salesRowCount = 0;
+                
+                // Add rows for each sale
+                data.sales.forEach(sale => {
+                    addSalesRow();
+                    const row = salesTbody.lastChild;
+                    
+                    row.querySelector('.product-name').value = sale.productName || '';
+                    row.querySelector('.stock-code').value = sale.stockCode || '';
+                    row.querySelector('.quantity').value = sale.quantity || '';
+                    row.querySelector('.return').value = sale.returned || '';
+                    row.querySelector('.damage').value = sale.damage || '';
+                    row.querySelector('.sold').value = sale.sold || '';
+                    row.querySelector('.unit-price').value = sale.unitPrice || '';
+                    row.querySelector('.total-price').value = sale.totalPrice || '';
+                    row.querySelector('.discount').value = sale.discount || '';
+                    row.querySelector('.after-discount').value = sale.afterDiscount || '';
+                    row.querySelector('.comment').value = sale.comment || '';
+                });
+            }
+
+            // Load expense data
+            if (data.expenses && data.expenses.length > 0) {
+                // Clear existing rows
+                const expenseTbody = document.querySelector('#expenseTable tbody');
+                expenseTbody.innerHTML = '';
+                expenseRowCount = 0;
+                
+                // Add rows for each expense
+                data.expenses.forEach(expense => {
+                    addExpenseRow();
+                    const row = expenseTbody.lastChild;
+                    
+                    row.querySelector('.expense-desc').value = expense.description || '';
+                    row.querySelector('.expense-type').value = expense.type || '';
+                    row.querySelector('.quantity').value = expense.quantity || '';
+                    row.querySelector('.unit-price').value = expense.unitPrice || '';
+                    row.querySelector('.total-cost').value = expense.totalCost || '';
+                    row.querySelector('.comment').value = expense.comment || '';
+                });
+            }
+
+            // Load stock data
+            if (data.stock && data.stock.length > 0) {
+                // Clear existing rows
+                const stockTbody = document.querySelector('#stockTable tbody');
+                stockTbody.innerHTML = '';
+                stockRowCount = 0;
+                
+                // Add rows for each stock item
+                data.stock.forEach(stock => {
+                    addStockRow();
+                    const row = stockTbody.lastChild;
+                    
+                    row.querySelector('.product-name').value = stock.productName || '';
+                    row.querySelector('.stock-code').value = stock.stockCode || '';
+                    row.querySelector('.unit').value = stock.unit || '';
+                    row.querySelector('.current-stock').value = stock.currentStock || '';
+                    row.querySelector('.min-stock').value = stock.minStock || '';
+                    row.querySelector('.purchase-price').value = stock.purchasePrice || '';
+                    row.querySelector('.selling-price').value = stock.sellingPrice || '';
+                    row.querySelector('.last-update').value = stock.lastUpdate || '';
+                    row.querySelector('.comment').value = stock.comment || '';
+                });
+            }
+
+            // Load summary
+            if (data.summary) {
+                document.getElementById('totalSales').value = data.summary.totalSales || '';
+                document.getElementById('totalReturns').value = data.summary.totalReturns || '';
+                document.getElementById('totalDamage').value = data.summary.totalDamage || '';
+                document.getElementById('totalExpenses').value = data.summary.totalExpenses || '';
+                document.getElementById('netIncome').value = data.summary.netIncome || '';
+                document.getElementById('currentCash').value = data.summary.currentCash || '';
+                document.getElementById('totalExternalCash').value = data.summary.totalExternalCash || '';
+            }
+
+            alert('ডেটা সফলভাবে লোড করা হয়েছে!');
+        }
+
+        // Product autocomplete data list
+        const productList = document.createElement('datalist');
+        productList.id = 'productList';
+        document.body.appendChild(productList);
+        
+        // Sample products - you can add more
+        const products = ['চাল', 'ডাল', 'আটা', 'তেল', 'চিনি', 'লবণ', 'সাবান', 'শ্যাম্পু'];
+        products.forEach(product => {
+            const option = document.createElement('option');
+            option.value = product;
+            productList.appendChild(option);
+        });
+
+        // Initialize the application
+        window.onload = init;
+    </script>
+</body>
+</html>
